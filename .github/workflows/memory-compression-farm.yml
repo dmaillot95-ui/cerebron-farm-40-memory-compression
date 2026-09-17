@@ -1,0 +1,75 @@
+name: CEREBRON Farm 40 Memory Compression
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  agents:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - {role: LOSSLESS_COMPRESSION_ARCHITECT, model: huggingface-projects/llama-3.2-3B-Instruct}
+          - {role: SEMANTIC_DEDUPLICATION_SPECIALIST, model: huggingface-projects/gemma-2-9b-it}
+          - {role: PROVENANCE_PRESERVATION_AUDITOR, model: huggingface-projects/llama-3.2-3B-Instruct}
+          - {role: UNCERTAINTY_PRESERVATION_SPECIALIST, model: huggingface-projects/gemma-2-9b-it}
+          - {role: CONTRADICTION_PRESERVATION_AUDITOR, model: huggingface-projects/llama-3.2-3B-Instruct}
+          - {role: ASSUMPTION_PRESERVATION_AUDITOR, model: huggingface-projects/gemma-2-9b-it}
+          - {role: DEPENDENCY_GRAPH_COMPRESSOR, model: huggingface-projects/llama-3.2-3B-Instruct}
+          - {role: EVIDENCE_CHAIN_COMPRESSOR, model: huggingface-projects/gemma-2-9b-it}
+          - {role: KNOWLEDGE_DISTILLATION_SPECIALIST, model: huggingface-projects/llama-3.2-3B-Instruct}
+          - {role: INDEX_AND_RETRIEVAL_ARCHITECT, model: huggingface-projects/gemma-2-9b-it}
+          - {role: RECONSTRUCTION_TEST_ENGINEER, model: huggingface-projects/llama-3.2-3B-Instruct}
+          - {role: INFORMATION_LOSS_AUDITOR, model: huggingface-projects/gemma-2-9b-it}
+          - {role: TEMPORAL_MEMORY_COMPRESSOR, model: huggingface-projects/llama-3.2-3B-Instruct}
+          - {role: VERSION_HISTORY_COMPRESSOR, model: huggingface-projects/gemma-2-9b-it}
+          - {role: SOURCE_SEPARATION_AUDITOR, model: huggingface-projects/llama-3.2-3B-Instruct}
+          - {role: MINIMUM_SUFFICIENT_MEMORY_SPECIALIST, model: huggingface-projects/gemma-2-9b-it}
+          - {role: CROSS_DOMAIN_MEMORY_LINKER, model: huggingface-projects/llama-3.2-3B-Instruct}
+          - {role: FAILURE_MEMORY_CURATOR, model: huggingface-projects/gemma-2-9b-it}
+          - {role: RED_TEAM_MEMORY_COMPRESSION, model: huggingface-projects/llama-3.2-3B-Instruct}
+          - {role: OMEGA_MEMORY_COMPRESSION_JUDGE, model: huggingface-projects/gemma-2-9b-it}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install -U hf-gradio
+      - run: python worker/agent.py
+        env:
+          ROLE: ${{ matrix.role }}
+          MODEL: ${{ matrix.model }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: farm40-${{ matrix.role }}
+          path: result/*.json
+  omega:
+    if: always()
+    needs: agents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: farm40-*
+          path: inputs
+          merge-multiple: true
+      - name: Build omega packet
+        run: |
+          python - <<'PY'
+          import glob,json,pathlib
+          rows=[]
+          for p in glob.glob('inputs/*.json'):
+              try: rows.append(json.load(open(p)))
+              except Exception: pass
+          success=[r for r in rows if r.get('inference_success') is True and r.get('status')=='UNREVIEWED_EXTERNAL_AGENT_OUTPUT']
+          failed=[r for r in rows if r not in success]
+          packet={'farm':40,'name':'Memory Compression','roles_returned':len(rows),'successful_external_ai_calls':len(success),'failed_external_ai_calls':len(failed),'status':'UNREVIEWED_EXTERNAL_AGENT_OUTPUT','rules':['CLAIM<=EVIDENCE','UNKNOWN REMAINS UNKNOWN','COMPRESSION!=TRUTH','MEMORY!=UNDERSTANDING'],'rows':rows}
+          pathlib.Path('omega').mkdir(exist_ok=True); pathlib.Path('omega/packet.json').write_text(json.dumps(packet,ensure_ascii=False,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: memory-compression-farm-40-omega-packet
+          path: omega/packet.json
