@@ -1,7 +1,7 @@
 import hashlib,json,os,pathlib,subprocess
+from registry_loader import load_context
 PREFERRED=['/generate','/chat','/predict','/respond','/infer','/run']
-def run(cmd,timeout=240):
-    return subprocess.run(cmd,capture_output=True,text=True,timeout=timeout)
+def run(cmd,timeout=240): return subprocess.run(cmd,capture_output=True,text=True,timeout=timeout)
 def payload_for(spec,prompt):
     p={}; set_prompt=False
     for x in spec.get('parameters',[]):
@@ -40,7 +40,11 @@ def invoke(space,prompt):
         errors.append((ep,(pred.stderr or pred.stdout)[-2000:]))
     return False,'',{'errors':errors}
 role=os.environ['ROLE']; model=os.environ['MODEL']
-prompt=f'''You are FARM 40 MEMORY COMPRESSION role {role}. Compress knowledge while preserving provenance, uncertainty, contradictions, assumptions, validity domains and reconstruction-critical detail. Identify what can be removed, merged, encoded, indexed, or must be retained verbatim. Distinguish compression loss from uncertainty reduction. CLAIM<=EVIDENCE. UNKNOWN REMAINS UNKNOWN. Return concise sections: critical information; redundancy; dependencies; compression strategy; information-loss risks; provenance requirements; reconstruction test; uncertainty.'''
+registry_context,registry_meta=load_context(['constitution','meta_core','macrograins','disciplines','keys','banks'])
+prompt=f'''You are FARM 40 MEMORY COMPRESSION role {role}. Compress knowledge while preserving provenance, uncertainty, contradictions, assumptions, validity domains and reconstruction-critical detail. Identify what can be removed, merged, encoded, indexed, or must be retained verbatim. Distinguish compression loss from uncertainty reduction. CLAIM<=EVIDENCE. UNKNOWN REMAINS UNKNOWN. Return concise sections: critical information; redundancy; dependencies; compression strategy; information-loss risks; provenance requirements; reconstruction test; uncertainty.
+
+CENTRAL C42 GUIDANCE (not self-certifying):
+{registry_context}'''
 ok,text,meta=invoke(model,prompt)
-out={'farm':40,'role':role,'model':model,'inference_success':ok,'status':'UNREVIEWED_EXTERNAL_AGENT_OUTPUT' if ok else 'EXTERNAL_INFERENCE_FAILED','output':text if ok else '', 'meta':meta}
+out={'farm':40,'role':role,'model':model,'inference_success':ok,'status':'UNREVIEWED_EXTERNAL_AGENT_OUTPUT' if ok else 'EXTERNAL_INFERENCE_FAILED','output':text if ok else '', 'meta':meta,'registry_runtime':registry_meta}
 pathlib.Path('result').mkdir(exist_ok=True); pathlib.Path(f'result/{role}.json').write_text(json.dumps(out,ensure_ascii=False,indent=2))
